@@ -9,38 +9,17 @@
     rel="stylesheet"
   />
   <style>
-    body {
-      background: #f4f6f9;
-      font-family: "Segoe UI", sans-serif;
-    }
+    body { background: #f4f6f9; font-family: "Segoe UI", sans-serif; }
     .scanner-card {
-      background: white;
-      border-radius: 1rem;
+      background: white; border-radius: 1rem;
       box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.05);
-      padding: 2rem;
-      max-width: 500px;
-      margin: 2rem auto;
+      padding: 2rem; max-width: 500px; margin: 2rem auto;
     }
-    video {
-      width: 100%;
-      border-radius: 0.75rem;
-      margin-bottom: 1rem;
-    }
-    .btn-scan {
-      width: 100%;
-      font-weight: 600;
-      padding: 0.75rem;
-    }
-    .alert {
-      margin-top: 1rem;
-    }
-    .preview-card {
-      display: none;
-    }
-    .preview-card img {
-      max-height: 200px;
-      object-fit: contain;
-    }
+    video { width: 100%; border-radius: 0.75rem; margin-bottom: 1rem; }
+    .btn-scan { width: 100%; font-weight: 600; padding: 0.75rem; }
+    .alert { margin-top: 1rem; }
+    .preview-card { display: none; }
+    .preview-card img { max-height: 200px; object-fit: contain; }
   </style>
 </head>
 <body>
@@ -52,10 +31,8 @@
       <button class="btn btn-primary btn-scan" onclick="scan()">
         Scanează eticheta
       </button>
-      <button
-        class="btn btn-outline-secondary mt-2"
-        onclick="window.open('https://script.google.com/macros/s/AKfycbzu2LvPRlFUvncvfVbTYzOvcxYP4f7TPAE3Dq7Q1DeYp-9ikhXfXlmZKjwLou2cnCt6/exec', '_blank')"
-      >
+      <button class="btn btn-outline-secondary mt-2"
+              onclick="window.open('https://script.google.com/macros/s/AKfycbzu2LvPRlFUvncvfVbTYzOvcxYP4f7TPAE3Dq7Q1DeYp-9ikhXfXlmZKjwLou2cnCt6/exec','_blank')">
         Portofoliu
       </button>
 
@@ -83,11 +60,11 @@
     const beerImg = document.getElementById("beerImg");
     const beerName = document.getElementById("beerName");
 
-    // Pornește camera
+    // Pornește camera live
     navigator.mediaDevices
       .getUserMedia({ video: { facingMode: "environment" } })
-      .then((stream) => (video.srcObject = stream))
-      .catch((err) => alert("Eroare cameră: " + err));
+      .then(stream => video.srcObject = stream)
+      .catch(err => alert("Eroare cameră: " + err));
 
     function showStatus(msg, type = "info") {
       statusBox.className = `alert alert-${type}`;
@@ -106,33 +83,33 @@
 
       showStatus("Se trimite la Cloud Vision...", "warning");
       const res = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${AIzaSyDjhHP-_4Nuge1VGU7D6gpfgMyJJLY3UyQ}`,
+        `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
         {
           method: "POST",
           body: JSON.stringify({
-            requests: [
-              {
-                image: { content: base64 },
-                features: [
-                  { type: "LOGO_DETECTION", maxResults: 1 },
-                  { type: "WEB_DETECTION", maxResults: 5 }
-                ]
-              }
-            ]
+            requests: [{
+              image: { content: base64 },
+              features: [
+                { type: "LOGO_DETECTION", maxResults: 1 },
+                { type: "WEB_DETECTION", maxResults: 5 }
+              ]
+            }]
           })
         }
       );
-      const { responses } = await res.json();
+      const json = await res.json();
+      console.log("Cloud Vision response:", json);  // **verifici aici**
+      const responses = json.responses || [];
       let label = "";
 
-      // întâi logo detection
-      const logos = responses[0].logoAnnotations;
-      if (logos && logos.length) {
+      // 1) încerc logoDetection
+      const logos = responses[0]?.logoAnnotations;
+      if (logos?.length) {
         label = logos[0].description;
       } else {
-        // fallback la web entities
-        const web = responses[0].webDetection?.webEntities;
-        if (web && web.length) label = web[0].description;
+        // 2) fallback la webEntities
+        const web = responses[0]?.webDetection?.webEntities;
+        if (web?.length) label = web[0].description;
       }
 
       if (!label) {
@@ -140,7 +117,14 @@
         return;
       }
 
+      // confirmare înainte de salvare
+      if (!confirm(`S-a detectat berea: ${label}\nDorești să o salvezi?`)) {
+        showStatus("Berea NU a fost salvată.", "secondary");
+        return;
+      }
+
       showStatus(`Bere detectată: ${label}`, "success");
+
       // preview
       beerName.innerText = label;
       beerImg.src =
@@ -152,13 +136,10 @@
       fetch("https://script.google.com/macros/s/AKfycbzu2LvPRlFUvncvfVbTYzOvcxYP4f7TPAE3Dq7Q1DeYp-9ikhXfXlmZKjwLou2cnCt6/exec", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          beer: label,
-          timestamp: new Date().toISOString()
-        })
+        body: JSON.stringify({ beer: label, timestamp: new Date().toISOString() })
       })
-        .then((r) => r.text())
-        .then((msg) => showStatus(msg, msg.includes("salvată") ? "success" : "secondary"));
+      .then(r => r.text())
+      .then(msg => showStatus(msg, msg.includes("salvată") ? "success" : "secondary"));
     }
   </script>
 </body>
