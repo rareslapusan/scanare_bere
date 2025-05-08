@@ -49,98 +49,38 @@
     </div>
   </main>
 
-  <script>
-    // → Înlocuiește cu cheia ta Vision API:
-    const API_KEY = "AIzaSyDjhHP-_4Nuge1VGU7D6gpfgMyJJLY3UyQ";
+<script>
+  async function scan() {
+    // … capturezi camera exact cum ai avut …
+    const dataUrl = canvas.toDataURL("image/png");
+    const base64 = dataUrl.split(",")[1];
 
-    const video = document.getElementById("video");
-    const canvas = document.getElementById("canvas");
-    const statusBox = document.getElementById("status");
-    const previewCard = document.getElementById("previewCard");
-    const beerImg = document.getElementById("beerImg");
-    const beerName = document.getElementById("beerName");
+    showStatus("Analizăm eticheta...", "warning");
 
-    // Pornește camera live
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" } })
-      .then(stream => video.srcObject = stream)
-      .catch(err => alert("Eroare cameră: " + err));
-
-    function showStatus(msg, type = "info") {
-      statusBox.className = `alert alert-${type}`;
-      statusBox.classList.remove("d-none");
-      statusBox.innerText = msg;
-    }
-
-    async function scan() {
-      showStatus("Se capturează imaginea...", "warning");
-      const ctx = canvas.getContext("2d");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/png");
-      const base64 = dataUrl.split(",")[1];
-
-      showStatus("Se trimite la Cloud Vision...", "warning");
-      const res = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${API_KEY}`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            requests: [{
-              image: { content: base64 },
-              features: [
-                { type: "LOGO_DETECTION", maxResults: 1 },
-                { type: "WEB_DETECTION", maxResults: 5 }
-              ]
-            }]
-          })
-        }
-      );
-      const json = await res.json();
-      console.log("Cloud Vision response:", json);  // **verifici aici**
-      const responses = json.responses || [];
-      let label = "";
-
-      // 1) încerc logoDetection
-      const logos = responses[0]?.logoAnnotations;
-      if (logos?.length) {
-        label = logos[0].description;
-      } else {
-        // 2) fallback la webEntities
-        const web = responses[0]?.webDetection?.webEntities;
-        if (web?.length) label = web[0].description;
-      }
-
-      if (!label) {
-        showStatus("Nu s-a detectat niciun brand de bere.", "danger");
-        return;
-      }
-
-      // confirmare înainte de salvare
-      if (!confirm(`S-a detectat berea: ${label}\nDorești să o salvezi?`)) {
-        showStatus("Berea NU a fost salvată.", "secondary");
-        return;
-      }
-
-      showStatus(`Bere detectată: ${label}`, "success");
-
-      // preview
-      beerName.innerText = label;
-      beerImg.src =
-        "https://source.unsplash.com/featured/?" +
-        encodeURIComponent(label + " beer");
-      previewCard.style.display = "block";
-
-      // trimitere în Sheets
-      fetch("https://script.google.com/macros/s/AKfycbzu2LvPRlFUvncvfVbTYzOvcxYP4f7TPAE3Dq7Q1DeYp-9ikhXfXlmZKjwLou2cnCt6/exec", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ beer: label, timestamp: new Date().toISOString() })
+    // → acum facem POST la Apps Script, nu la Google Vision
+    const res = await fetch("https://script.google.com/macros/s/AKfycbzu2LvPRlFUvncvfVbTYzOvcxYP4f7TPAE3Dq7Q1DeYp-9ikhXfXlmZKjwLou2cnCt6/exec", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        imageBase64: base64,
+        timestamp: new Date().toISOString()
       })
-      .then(r => r.text())
-      .then(msg => showStatus(msg, msg.includes("salvată") ? "success" : "secondary"));
+    });
+    const result = await res.json();
+    if (result.status !== "ok") {
+      showStatus(result.message, "danger");
+      return;
     }
-  </script>
+    const label = result.beer;
+    showStatus(`Bere detectată: ${label}`, "success");
+
+    // preview
+    beerName.innerText = label;
+    beerImg.src = "https://source.unsplash.com/featured/?" +
+                  encodeURIComponent(label + " beer");
+    previewCard.style.display = "block";
+  }
+</script>
+
 </body>
 </html>
